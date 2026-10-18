@@ -136,9 +136,6 @@ h2{font-size:clamp(21px,2.3vw,27px);line-height:1.45;margin-bottom:6px;letter-sp
 .track{display:flex;gap:6px;margin-bottom:18px}
 .track span{height:8px;border-radius:99px;flex:1;background:#f1eee7;transition:background .3s}
 .track .done{background:#7ac8ab}.track .current{background:var(--orange)}
-.coach{display:flex;gap:10px;align-items:flex-start;background:#fff8e6;border:2px dashed #f4cf8f;border-radius:16px;padding:11px 13px;margin:0 0 14px;font-size:13px;line-height:1.75;font-weight:700;color:#7b5a33}
-.coach b{color:var(--orange-deep)}
-.coach .ico{font-size:20px;line-height:1.3}
 .story-wrap{position:relative;margin:4px 0 14px}
 .story{background:#fbf9f3;border:1px solid #f0e9db;border-radius:18px;padding:16px 18px;line-height:2.05;font-size:17px;font-weight:700;white-space:pre-line;margin:0}
 .g3 .story{font-size:16px}

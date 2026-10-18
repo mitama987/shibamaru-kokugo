@@ -148,7 +148,7 @@ function renderTitle() {
   app.innerHTML = `
     <div class="eyebrow">KOKUGO ADVENTURE</div>
     <h1>こくごの「なぜ？」を<br><span class="accent">みつけよう！</span></h1>
-    <p class="lead">しばまると いっしょに、もんだいの よみかたを たんけん。<br>さいしょは れんしゅうの チュートリアル、そのあと 6つの ステージに ちょうせん！</p>
+    <p class="lead">さいしょに れんしゅう、そのあと 6つの ステージに ちょうせん！</p>
     <div class="mini-tags"><span class="mini-tag">🐾 1日1ステージ・5ふん</span><span class="mini-tag">🎁 なかまを あつめる</span><span class="mini-tag">✏️ かみと えんぴつ</span></div>
     <span class="field-label">だれが あそぶ？</span>
     <div class="grade-row">
@@ -196,7 +196,6 @@ function renderMap() {
       <h2 style="margin:0">${t('🌱 1ねんせいの ぼうけん', '⭐ 3年生のぼうけん')}</h2>
       <span class="chip">🎁 なかま ${friends}/6</span>
     </div>
-    <p class="helper" style="margin:4px 0 0">${t('1にち 1ステージ、5ふんくらいで あそべるよ。', '1日1ステージ、5分くらいで遊べるよ。')}</p>
     <nav class="map" aria-label="ぼうけんマップ"><ol>${nodes}</ol></nav>
     <div class="map-links">
       <button type="button" class="secondary" id="friends">🐾 なかま ずかん</button>
@@ -221,9 +220,8 @@ function startStage(i) {
 function stepHeader(num, total, title, caption, pill) {
   return `<div class="progress-top"><button type="button" class="back" id="back">← マップ</button><span class="step-pill">${pill} ${num} / ${total}</span></div>
     <div class="track" aria-label="すすみぐあい ${num}/${total}">${Array.from({ length: total }, (_, k) => `<span class="${k + 1 < num ? 'done' : k + 1 === num ? 'current' : ''}"></span>`).join('')}</div>
-    <h2>${title}</h2><p class="helper">${caption}</p>`;
+    <h2>${title}</h2>${caption ? `<p class="helper">${caption}</p>` : ''}`;
 }
-const coach = (html) => `<div class="coach"><span class="ico" aria-hidden="true">🐾</span><span>${html}</span></div>`;
 function choiceButtons(name, items, value) {
   return `<div class="choices3" role="group" aria-label="${name}">${items.map(([v, label]) => `<button type="button" class="${v === value ? 'selected' : ''}" data-field="${name}" data-value="${v}" aria-pressed="${v === value}">${esc(label)}</button>`).join('')}</div>`;
 }
@@ -236,21 +234,19 @@ function renderTutorial() {
   const pill = 'チュートリアル';
   if (T.step === 1) {
     say(t('もんだいを よんで、<br>なにを きかれたか さがそう！', '問題を読んで、<br>何を聞かれたか探そう！'));
-    app.innerHTML = stepHeader(1, 4, 'もんだいの ひみつを さがせ！', t('おはなしを よんで、なにを きかれて いるか えらんでね。', 'お話を読んで、何を聞かれているか選んでね。'), pill)
-      + coach(t('<b>たんけんの やりかた</b>：おはなしを よむ → こたえる。こまったら「🔈よんでもらう」も つかえるよ。', '<b>たんけんの進め方</b>：お話を読む → 答える。「🔈よんでもらう」で読み上げもできるよ。'))
+    app.innerHTML = stepHeader(1, 4, 'もんだいの ひみつを さがせ！', '', pill)
       + passage
       + `<div class="ask">この もんだいで きかれて いるのは？</div>
       <div class="options">${q.choices.map((x, i) => `<button type="button" class="option ${i === T.intent ? 'selected' : ''}" data-intent="${i}" aria-pressed="${i === T.intent}">${esc(x)}</button>`).join('')}</div>
-      <p class="tiny-rule">※チュートリアルでは、まだ せいかいを ひょうじしません（このあと「口で答える」ようすを見るため）。</p>
+      <p class="tiny-rule">※こたえあわせは さいごに するよ。</p>
       <div class="cta-bar"><button type="button" class="primary" id="next" ${T.intent === null ? 'disabled' : ''}>つぎへ すすむ →</button></div>`;
     on('[data-intent]', (b) => { sfx('tap'); T.intent = Number(b.dataset.intent); render(); });
     $('#next').addEventListener('click', () => { sfx('tap'); T.step = 2; go('tutorial', { push: false }); });
   } else if (T.step === 2) {
     say(t('つぎは こえに だして<br>こたえてみよう！', '次は声に出して<br>答えてみよう！'));
-    app.innerHTML = stepHeader(2, 4, 'おくちで こたえてみよう！', t('まだ かかなくて いいよ。こえに だして みよう。', 'まだ書かなくていいよ。声に出してみよう。'), pill)
-      + coach(t('<b>👪 マークの ところ</b>は、おうちの人が タップするよ。', '<b>👪 マークのところ</b>は、おうちの人がタップするよ。'))
+    app.innerHTML = stepHeader(2, 4, 'おくちで こたえてみよう！', t('まだ かかなくて いいよ。', 'まだ書かなくていいよ。'), pill)
       + passage
-      + `<div class="parent-box"><strong>👪 ここからは保護者が記録</strong><p>まずヒントなしで答えてもらってね。難しければ「どこに書いてあるかな？」などと声をかけ、様子を見て選択してね。答えはまだ表示しません。</p></div>
+      + `<div class="parent-box"><strong>👪 おうちの人がタップ</strong><p>まずヒントなしで。むずかしければ「どこに書いてあるかな？」と声かけを。</p></div>
       <div class="group-label">口で答えられた？</div>
       ${choiceButtons('oral', [['yes', '😊 ひとりで答えられた'], ['hint', '💡 ヒントがあれば答えられた'], ['no', '🤔 答えられなかった']], T.oral)}
       <div class="cta-bar"><button type="button" class="primary" id="next" ${!T.oral ? 'disabled' : ''}>かく ミッションへ →</button></div>`;
@@ -258,11 +254,10 @@ function renderTutorial() {
     $('#next').addEventListener('click', () => { sfx('tap'); T.step = 3; go('tutorial', { push: false }); });
   } else if (T.step === 3) {
     say(t('さいごは かみに かいてみよ！<br>みじかくて いいよ ✏️', '最後は紙に書いてみよ！<br>短くていいよ ✏️'));
-    app.innerHTML = stepHeader(3, 4, 'かみと えんぴつの ミッション！', t('さっき こえに だした こたえを、かみに かいてみよう。', 'さっき声に出した答えを、紙に書いてみよう。'), pill)
-      + coach(t('<b>どの ステージも さいごは かみに かく</b> よ。がっこうの テストの れんしゅうに なるんだ。', '<b>どのステージも最後は紙に書く</b>よ。学校のテストの練習になるんだ。'))
+    app.innerHTML = stepHeader(3, 4, 'かみと えんぴつの ミッション！', '', pill)
       + passage
-      + `<div class="writing-visual"><span class="pencil" aria-hidden="true">✏️</span><span>紙に1文で書いてみよう。<br>時間制限はなし。おうちの人は様子を見てね。</span></div>
-      <div class="parent-box"><strong>👪 保護者用の観察メモ</strong><p>文字のきれいさではなく、書き始められるか／意味が伝わる文になるかを確認。書くのを嫌がった場合は、無理に続けなくてOK。</p></div>
+      + `<div class="writing-visual"><span class="pencil" aria-hidden="true">✏️</span><span>${t('いま いった こたえを、かみに 1ぶんで かこう。', 'いま言った答えを、紙に1文で書こう。')}</span></div>
+      <div class="parent-box"><strong>👪 おうちの人がタップ</strong><p>字のきれいさより、書き始められたか・意味が通じるかを見てね。嫌がったら無理しなくてOK。</p></div>
       <div class="group-label">① 書き始める様子は？</div>
       ${choiceButtons('start', [['quick', '😊 自分から書き始めた'], ['prompt', '💬 声かけ後に書き始めた'], ['avoid', '😣 嫌がった・書き始められなかった']], T.start)}
       <div class="group-label">② 書いた答えは？</div>
@@ -281,8 +276,7 @@ function renderTutorial() {
       + `<div class="result-box"><div class="result-head">🐾 ${esc(a.title)}</div><p>${esc(a.text)}</p></div>
       ${tutorialGrid(T)}
       <div class="answer-sample"><strong>答えの例</strong><br>${esc(q.example)}</div>
-      ${coach(t('つぎは <b>たからばこ</b>！ ステージを クリアすると なかまが ふえるよ。', '次は<b>宝箱</b>！ ステージをクリアすると仲間が増えるよ。'))}
-      <p class="tiny-rule">※これは1問だけの観察結果です。体調・気分・問題との相性で変わるため、学力や発達の診断ではありません。記録は「おうちの人へ」でいつでも見られます。</p>
+      <p class="tiny-rule">※1問だけの観察です。学力や発達の診断ではありません。記録は「おうちの人へ」で見られます。</p>
       <div class="cta-bar"><button type="button" class="primary" id="next">🎁 たからばこを あける</button></div>`;
     $('#next').addEventListener('click', () => {
       S.progress = completeStage(S.progress, 'tutorial', { hints: 0, paper: T.start, written: T.written });
@@ -373,7 +367,6 @@ function missionDecode(name) {
     return `<button type="button" class="option ${cls}" data-pick="${i}" ${st.solved || st.tried.includes(i) ? 'disabled' : ''}>${esc(d.choices[i])}</button>`;
   }).join('');
   return `<h2>${esc(name)}${multi ? ` <small style="font-size:14px;color:var(--muted)">${st.sub + 1}/${s.decode.length}</small>` : ''}</h2>
-    <p class="helper">${esc(s.place)}「${esc(s.title)}」 — ${t('おはなしと もんだいを よもう。', 'お話と問題文を読もう。')}</p>
     ${storyBlock()}
     <div class="question">${highlightQuestion(s.question)}</div>
     <div class="ask">${esc(d.ask)}</div>
@@ -389,12 +382,11 @@ function missionEvidence(name) {
     return `<button type="button" class="sent ${cls}" data-sent="${i}" ${st.solved ? 'disabled' : ''}><span class="no" aria-hidden="true">${i + 1}</span><span class="txt">${esc(p)}</span></button>`;
   }).join('');
   return `<h2>${esc(name)}</h2>
-    <p class="helper">${t('こたえの てがかりに なる ぶんを ひとつ タップしてね。', '答えの根拠になる文を1つタップしてね。')}</p>
     <div class="question">${highlightQuestion(s.question)}</div>
-    <div class="barrier ${st.solved ? 'broken' : ''}" id="barrier">${st.solved ? '✨ バリア パリン！ てがかりを みつけた！' : '🛡️ てがかりの バリア … ただしい ぶんで わろう！'}</div>
+    <div class="barrier ${st.solved ? 'broken' : ''}" id="barrier">${st.solved ? '✨ パリン！ みつけた！' : t('🛡️ こたえが ある ぶんを タップ', '🛡️ 答えがある文をタップ')}</div>
     <div class="sentences">${sents}</div>
     ${readBtn()}
-    ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">🔎</span><span>${t('ここに こたえが かいて あるね！ かみの もんだいでも、こういう ぶんに せんを ひこう。', 'ここが根拠だね！ 紙の問題でも、こういう文に線を引こう。')}</span></div>` : hintBox('evidence')}
+    ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">✏️</span><span>${t('かみの もんだいでも、ここに せんを ひこう。', '紙の問題でも、ここに線を引こう。')}</span></div>` : hintBox('evidence')}
     <div class="cta-bar"><button type="button" class="primary" id="next" ${st.solved ? '' : 'disabled'}>${st.solved ? 'つぎへ →' : t('ぶんを タップしてね', '文をタップしてね')}</button></div>`;
 }
 function missionBuild(name) {
@@ -415,7 +407,7 @@ function missionBuild(name) {
   const cond = s.maxChars ? `<span class="chip">📏 ${s.maxChars}字${s.extract ? '' : '以内'}</span>` : '';
   const ready = b.type === 'cards' && !st.solved && st.picked.length > 0;
   return `<h2>${esc(name)}</h2>
-    <p class="helper">${b.type === 'cards' ? t('カードを じゅんばんに タップして、こたえの ぶんを つくろう。', 'カードを順番にタップして、答えの文を作ろう。') : t('もんだいに あう こたえを えらぼう。', '問題の条件に合う答えを選ぼう。')} ${cond}</p>
+    ${cond ? `<p class="helper">${cond}</p>` : ''}
     <div class="question">${highlightQuestion(s.question)}</div>
     ${ui}
     ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">🗣️</span><span>${t('できた！ こえに だして よんでみよう。', 'できた！ 声に出して読んでみよう。')}<br><b>「${esc(s.exampleAnswer)}」</b></span></div>` : hintBox('build')}
@@ -427,11 +419,9 @@ function missionPaper(name) {
   const st = S.st; const s = st.stage;
   say(t('かみに かいたら<br>たからばこだよ！ ✏️', '紙に書いたら<br>宝箱だよ！ ✏️'));
   return `<h2>${esc(name)}</h2>
-    <p class="helper">${t('くみたてた こたえを、かみに うつして かこう。ゆっくりで いいよ。', '組み立てた答えを、紙に写して書こう。ゆっくりでいいよ。')}</p>
     <div class="question">${esc(s.question)}</div>
-    <div class="notebook"><small>${t('かく こたえ', '書く答え')}</small>${esc(s.exampleAnswer)}</div>
-    <div class="writing-visual"><span class="pencil" aria-hidden="true">✏️</span><span>${t('かいたら、おうちの人に みせてね。', '書いたら、おうちの人に見せてね。')}</span></div>
-    <div class="parent-box"><strong>👪 保護者がタップ</strong><p>どれを選んでも宝箱は開きます（できなかった日も罰にしない）。記録は「おうちの人へ」に残ります。</p></div>
+    <div class="notebook"><small>✏️ ${t('かみに うつそう', '紙に写そう')}</small>${esc(s.exampleAnswer)}</div>
+    <div class="parent-box"><strong>👪 かけたら おうちの人が タップ</strong><p>どれでも宝箱は開きます。</p></div>
     ${choiceButtons('paper', [['self', '😊 自分から書けた'], ['prompt', '💬 声かけで書けた'], ['oral', '🗣️ 今日は口で言えた（書くのはお休み）']], st.paper)}
     <div class="cta-bar"><button type="button" class="primary" id="next" ${st.paper ? '' : 'disabled'}>🎁 たからばこを あける</button></div>`;
 }
@@ -635,5 +625,6 @@ render();
 window.__shibamaru = { S, normalize };
 
 /* Version History
+ * ver1.1 (2026-10-18): 文字を削減（チュートリアルの操作説明カード撤去、説明文の重複削除、保護者向け文言を短文化）。UIとしばまるの吹き出しで操作が分かる形に
  * ver1.0 (2026-10-18): 新規。タイトル（学年選択）→ぼうけんマップ→チュートリアル（元1問チェック＋操作説明）→6ステージ（解読・根拠・組み立て・紙）→宝箱→なかま図鑑・保護者ページ
  */
