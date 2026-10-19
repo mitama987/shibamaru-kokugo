@@ -1,5 +1,8 @@
 // しばまるの こくごたんけん — 画面描画とイベント
-import { checkOrder, isUnlocked, completeStage, analyzeTutorial, loadProgress, saveProgress, normalize } from './logic.js';
+import {
+  checkOrder, isUnlocked, completeStage, analyzeTutorial, loadProgress, saveProgress, normalize,
+  questionChips, fullPick, sameSet, MISSIONS, subCount, helpFocus,
+} from './logic.js';
 import { STAGES, TUTORIAL, COMPANIONS } from './stages.js';
 
 const app = document.getElementById('app');
@@ -211,7 +214,10 @@ function startStage(i) {
   sfx('tap');
   if (i === 0) { S.tut = { step: 1, intent: null, oral: null, start: null, written: null, note: '' }; go('tutorial'); return; }
   const stage = STAGES[S.grade][i - 1];
-  S.st = { stage, index: i, mission: 1, sub: 0, tried: [], solved: false, hint: 0, hintsUsed: 0, picked: [], paper: null, order: null };
+  S.st = {
+    stage, index: i, mission: 1, sub: 0, tried: [], solved: false, hint: 0, hintsUsed: 0, hintsBy: { decode: 0, evidence: 0, build: 0, check: 0 },
+    picked: [], selected: [], checked: [], showModel: false, paper: null, order: null,
+  };
   prepareOrder();
   go('stage');
 }
@@ -302,54 +308,77 @@ function tutorialGrid(T) {
   </div>`;
 }
 
-// ---------- 本番ステージ（4ミッション） ----------
+// ---------- 本番ステージ（5ミッション：ひみつ → てがかり → くみたて → チェック → かみ） ----------
+const kindOf = (st) => MISSIONS[st.mission - 1];
 function prepareOrder() {
-  const { stage: s, mission, sub } = S.st;
-  if (mission === 1) S.st.order = shuffle(s.decode[sub].choices.length);
-  if (mission === 3) S.st.order = shuffle(s.build.type === 'cards' ? s.build.cards.length : s.build.choices.length);
+  const st = S.st; const s = st.stage; const kind = kindOf(st);
+  st.order = null;
+  if (kind === 'decode' && s.grade === 1 && st.sub === 1) st.order = shuffle(s.shape.choices.length);
+  if (kind === 'decode' && s.grade === 3) st.order = shuffle(s.conds.choices.length);
+  if (kind === 'build') st.order = shuffle(s.build.type === 'cards' ? s.build.cards.length : s.build.choices.length);
+  if (kind === 'check' && s.grade === 3) st.order = shuffle(s.review.length);
 }
 function nextMission() {
   const st = S.st;
-  if (st.mission === 1 && st.sub < st.stage.decode.length - 1) st.sub += 1;
+  if (st.sub < subCount(st.stage, kindOf(st)) - 1) st.sub += 1;
   else { st.mission += 1; st.sub = 0; }
-  Object.assign(st, { tried: [], solved: false, hint: 0, picked: [] });
+  Object.assign(st, { tried: [], solved: false, hint: 0, picked: [], selected: [] });
   prepareOrder();
   sfx('tap');
   render();
   window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
 }
+function countHelp() {
+  const st = S.st;
+  st.hintsUsed += 1;
+  st.hintsBy[kindOf(st)] = (st.hintsBy[kindOf(st)] ?? 0) + 1;
+}
 function missed() {
   const st = S.st;
   sfx('hmm');
-  if (st.hint < 3) { st.hint += 1; st.hintsUsed += 1; }
+  if (st.hint < 3) { st.hint += 1; countHelp(); }
 }
-function hintBox(kind) {
+// まちがえたら ヒントを出して、下のボタンに かくれないよう 見える位置へ
+function miss() {
+  missed(); render();
+  $('.feedback.hint')?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+function hintList() {
+  const st = S.st; const s = st.stage; const kind = kindOf(st);
+  if (kind === 'decode' && s.grade === 1 && st.sub === 1) return s.shape.hints;
+  return s.hints[kind];
+}
+function hintBox() {
   const st = S.st;
   if (st.solved) return '';
-  const hints = st.stage.hints[kind];
-  const shown = st.hint > 0 ? `<div class="feedback hint" role="status"><span class="ico" aria-hidden="true">💡</span><span>${st.tried.length ? t('おしい！ ', 'おしい！ ') : ''}${esc(hints[st.hint - 1])}</span></div>` : '';
+  const hints = hintList();
+  const shown = st.hint > 0 ? `<div class="feedback hint" role="status"><span class="ico" aria-hidden="true">💡</span><span>${st.tried.length ? 'おしい！ ' : ''}${esc(hints[st.hint - 1])}</span></div>` : '';
   const more = st.hint < 3 ? `<button type="button" class="hint-btn" id="hint">💡 ヒント${st.hint ? 'を もっと' : ''}（${st.hint}/3）</button>` : '';
   return shown + more;
 }
 function bindHint() {
   const b = $('#hint');
-  if (b) b.addEventListener('click', () => { S.st.hint += 1; S.st.hintsUsed += 1; sfx('tap'); render(); });
+  if (b) b.addEventListener('click', () => { S.st.hint += 1; countHelp(); sfx('tap'); render(); });
 }
-function highlightQuestion(q) {
-  // 問題文の「問いのことば」に下線マーカー（どうして／なぜ／だれ 等）
-  return esc(q).replace(/(どうして|なぜ|だれ|どこ|いつ|どんな きもち|どんな気持ち|なにを|何と|どのように|書きぬき|五字|十五字以内|本文の言葉を使って|「それ」)/g, '<mark>$1</mark>');
+function highlightQuestion(s) {
+  // 1年は問いのことば（qword）だけ、3年は条件のことばに下線マーカー
+  if (s.grade === 1) return esc(s.question).replace(esc(s.qword), `<mark>${esc(s.qword)}</mark>`);
+  return esc(s.question).replace(/(なぜ|何と|どのように|どんな気持ち|前の日の夜|「〜な気持ち。」の形|書きぬき|本文から|五字|十五字以内|本文の言葉を使って|「それ」)/g, '<mark>$1</mark>');
 }
 function renderStage() {
-  const st = S.st; const s = st.stage;
-  const missions = [t('もんだいの ひみつ', '問題文を解読'), t('てがかり さがし', '手がかりさがし'), t('こたえ くみたて', '答えを組み立て'), t('かみに かこう', '紙に書こう')];
-  const head = `<div class="progress-top"><button type="button" class="back" id="back">← マップ</button><span class="step-pill">${t('ステージ', 'ステージ')}${st.index} ・ ${st.mission} / 4</span></div>
-    <div class="track" aria-label="すすみぐあい ${st.mission}/4">${[1, 2, 3, 4].map((k) => `<span class="${k < st.mission ? 'done' : k === st.mission ? 'current' : ''}"></span>`).join('')}</div>`;
-  let body = '';
-  if (st.mission === 1) body = missionDecode(missions[0]);
-  if (st.mission === 2) body = missionEvidence(missions[1]);
-  if (st.mission === 3) body = missionBuild(missions[2]);
-  if (st.mission === 4) body = missionPaper(missions[3]);
-  app.innerHTML = head + body;
+  const st = S.st;
+  const names = {
+    decode: t('もんだいの ひみつ', '問題文を解読'), evidence: t('てがかり さがし', '手がかりさがし'), build: t('こたえ くみたて', '答えを組み立て'),
+    check: t('なかまの こたえ、あってる？', '先生になって丸つけ'), paper: t('かみに かこう', '紙に書こう'),
+  };
+  const total = MISSIONS.length;
+  const head = `<div class="progress-top"><button type="button" class="back" id="back">← マップ</button><span class="step-pill">ステージ${st.index} ・ ${st.mission} / ${total}</span></div>
+    <div class="track" aria-label="すすみぐあい ${st.mission}/${total}">${MISSIONS.map((_, k) => `<span class="${k + 1 < st.mission ? 'done' : k + 1 === st.mission ? 'current' : ''}"></span>`).join('')}</div>`;
+  const kind = kindOf(st);
+  const subs = subCount(st.stage, kind);
+  const title = `<h2>${esc(names[kind])}${subs > 1 ? ` <small class="sub-no">${st.sub + 1}/${subs}</small>` : ''}</h2>`;
+  const body = { decode: missionDecode, evidence: missionEvidence, build: missionBuild, check: missionCheck, paper: missionPaper }[kind]();
+  app.innerHTML = head + title + body;
   $('#back').addEventListener('click', () => { sfx('tap'); go('map'); });
   bindHint();
   bindMission();
@@ -358,45 +387,76 @@ function storyBlock() {
   const s = S.st.stage;
   return `<div class="story-wrap"><p class="story">${esc(s.passage.join('\n'))}</p>${readBtn()}</div>`;
 }
-function missionDecode(name) {
-  const st = S.st; const s = st.stage; const d = s.decode[st.sub];
-  const multi = s.decode.length > 1;
-  say(st.solved ? t('せいかい！<br>ひみつが わかったね ✨', '正解！<br>解読成功 ✨') : t('もんだいの ことばに<br>ちゅうもく！ 🔎', '問題文のことばに<br>注目しよう！ 🔎'));
+const nextBar = (label) => `<div class="cta-bar"><button type="button" class="primary" id="next" ${S.st.solved ? '' : 'disabled'}>${S.st.solved ? 'つぎへ →' : label}</button></div>`;
+const goodBox = (ico, html) => `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">${ico}</span><span>${html}</span></div>`;
+
+function missionDecode() {
+  const st = S.st; const s = st.stage;
+  if (s.grade === 1 && st.sub === 0) {
+    // ① 問いの中の「きいて いる ことば」をタップ
+    say(st.solved ? 'みつけた！<br>それが ひみつの ことば ✨' : 'もんだいの なかの<br>きいて いる ことばは？ 🔎');
+    const chips = questionChips(s.question, s.qword).map((c, i) => {
+      const cls = st.solved && c.key ? 'found' : st.tried.includes(i) ? 'nope' : '';
+      return `<button type="button" class="qchip ${cls}" data-chip="${i}" ${c.key ? 'data-key="1"' : ''} ${st.solved || st.tried.includes(i) ? 'disabled' : ''}>${esc(c.text)}</button>`;
+    }).join('');
+    return `<div class="ask">👆 きいて いる ことばを タップ</div>
+      <div class="qchips" aria-label="もんだいの ことば">${chips}</div>
+      ${st.solved ? goodBox('⭕', `「${esc(s.qword)}」が きいて いる ことばだね。`) : hintBox()}
+      <div class="group-label">📖 おはなし</div>
+      ${storyBlock()}
+      ${nextBar('ことばを タップしてね')}`;
+  }
+  if (s.grade === 1) {
+    // ② こたえの かたち（問いのことば → こたえの おわり）
+    say(st.solved ? 'せいかい！<br>こたえの かたちが わかったね ✨' : `「${esc(s.qword)}」と きかれたら<br>なにを こたえる？ 🤔`);
+    const opts = st.order.map((i) => {
+      const cls = st.solved && i === s.shape.answer ? 'correct' : st.tried.includes(i) ? 'nope' : '';
+      return `<button type="button" class="option ${cls}" data-pick="${i}" ${st.solved || st.tried.includes(i) ? 'disabled' : ''}>${esc(s.shape.choices[i])}</button>`;
+    }).join('');
+    return `<div class="question">${highlightQuestion(s)}</div>
+      <div class="ask">こたえは どんな ことば？</div>
+      <div class="options">${opts}</div>
+      ${st.solved ? goodBox('⭕', esc(s.shape.tip)) : hintBox()}
+      ${nextBar('こたえを えらんでね')}`;
+  }
+  // 3年：条件を ぜんぶ えらぶ
+  say(st.solved ? '解読成功！<br>条件が全部そろった ✨' : '問題文の条件を<br>全部見つけよう！ 🔎');
+  const c = s.conds;
   const opts = st.order.map((i) => {
-    const cls = st.solved && i === d.answer ? 'correct' : st.tried.includes(i) ? 'nope' : '';
-    return `<button type="button" class="option ${cls}" data-pick="${i}" ${st.solved || st.tried.includes(i) ? 'disabled' : ''}>${esc(d.choices[i])}</button>`;
+    const on = st.selected.includes(i);
+    const cls = st.solved ? (c.answers.includes(i) ? 'correct' : 'off') : on ? 'selected' : '';
+    return `<button type="button" class="option multi ${cls}" data-cond="${i}" aria-pressed="${on}" ${st.solved ? 'disabled' : ''}>${esc(c.choices[i])}</button>`;
   }).join('');
-  return `<h2>${esc(name)}${multi ? ` <small style="font-size:14px;color:var(--muted)">${st.sub + 1}/${s.decode.length}</small>` : ''}</h2>
-    ${storyBlock()}
-    <div class="question">${highlightQuestion(s.question)}</div>
-    <div class="ask">${esc(d.ask)}</div>
+  return `<div class="question">${st.solved ? highlightQuestion(s) : esc(s.question)}</div>
+    <div class="ask">条件を、全部選ぼう <span class="chip">${st.solved ? `${c.answers.length}つ` : 'いくつ？'}</span></div>
     <div class="options">${opts}</div>
-    ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">⭕</span><span>${esc(d.tip)}</span></div>` : hintBox('decode')}
-    <div class="cta-bar"><button type="button" class="primary" id="next" ${st.solved ? '' : 'disabled'}>${st.solved ? 'つぎへ →' : t('こたえを えらんでね', '答えを選んでね')}</button></div>`;
+    ${st.solved ? goodBox('⭕', esc(c.tip)) : hintBox()}
+    ${st.solved ? nextBar('') : `<div class="cta-bar"><button type="button" class="primary" id="check" ${st.selected.length ? '' : 'disabled'}>これで決定！</button></div>`}`;
 }
-function missionEvidence(name) {
+function missionEvidence() {
   const st = S.st; const s = st.stage;
   say(st.solved ? t('バリアが われた！<br>てがかり はっけん ✨', 'バリアが割れた！<br>手がかり発見 ✨') : t('こたえが かいて ある<br>ぶんを タップ！ 👆', '答えの根拠になる<br>文をタップ！ 👆'));
   const sents = s.passage.map((p, i) => {
     const cls = st.solved && s.evidence.includes(i) ? 'found' : st.tried.includes(i) ? 'nope' : '';
     return `<button type="button" class="sent ${cls}" data-sent="${i}" ${st.solved ? 'disabled' : ''}><span class="no" aria-hidden="true">${i + 1}</span><span class="txt">${esc(p)}</span></button>`;
   }).join('');
-  return `<h2>${esc(name)}</h2>
-    <div class="question">${highlightQuestion(s.question)}</div>
+  return `<div class="question">${highlightQuestion(s)}</div>
     <div class="barrier ${st.solved ? 'broken' : ''}" id="barrier">${st.solved ? '✨ パリン！ みつけた！' : t('🛡️ こたえが ある ぶんを タップ', '🛡️ 答えがある文をタップ')}</div>
     <div class="sentences">${sents}</div>
     ${readBtn()}
-    ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">✏️</span><span>${t('かみの もんだいでも、ここに せんを ひこう。', '紙の問題でも、ここに線を引こう。')}</span></div>` : hintBox('evidence')}
-    <div class="cta-bar"><button type="button" class="primary" id="next" ${st.solved ? '' : 'disabled'}>${st.solved ? 'つぎへ →' : t('ぶんを タップしてね', '文をタップしてね')}</button></div>`;
+    ${st.solved ? goodBox('✏️', t('かみの もんだいでも、ここに せんを ひこう。', '紙の問題でも、ここに線を引こう。')) : hintBox()}
+    ${nextBar(t('ぶんを タップしてね', '文をタップしてね'))}`;
 }
-function missionBuild(name) {
+function missionBuild() {
   const st = S.st; const s = st.stage; const b = s.build;
-  say(st.solved ? t('こえに だして<br>よんでみよう！ 🗣️', '声に出して<br>読んでみよう！ 🗣️') : t('こたえを<br>くみたてよう！ 🧩', '答えを<br>組み立てよう！ 🧩'));
+  say(st.solved ? t('といと こたえを<br>つなげて よもう！ 🗣️', '声に出して<br>読んでみよう！ 🗣️') : t('こたえを<br>くみたてよう！ 🧩', '答えを<br>組み立てよう！ 🧩'));
   let ui = '';
   if (b.type === 'cards') {
-    const slots = st.picked.map((i, k) => `<button type="button" class="card" data-unpick="${k}" ${st.solved ? 'disabled' : ''}>${esc(b.cards[i])}</button>`).join('');
-    const pool = st.order.map((i) => `<button type="button" class="card ${st.picked.includes(i) ? 'used' : ''}" data-card="${i}" ${st.picked.includes(i) || st.solved ? 'disabled tabindex="-1"' : ''}>${esc(b.cards[i])}</button>`).join('');
-    ui = `<div class="slots ${st.solved ? 'ok' : ''}" aria-label="くみたてた こたえ">${slots}</div>
+    const endIdx = b.fixedEnd ? b.answer[b.answer.length - 1] : -1;
+    const slots = st.picked.map((i, k) => `<button type="button" class="card" data-unpick="${k}" ${st.solved ? 'disabled' : ''}>${esc(b.cards[i])}</button>`).join('')
+      + (endIdx >= 0 ? `<span class="card fixed" aria-label="さいごの カード（はじめから おいて あるよ）">${esc(b.cards[endIdx])}</span>` : '');
+    const pool = st.order.filter((i) => i !== endIdx).map((i) => `<button type="button" class="card ${st.picked.includes(i) ? 'used' : ''}" data-card="${i}" ${st.picked.includes(i) || st.solved ? 'disabled tabindex="-1"' : ''}>${esc(b.cards[i])}</button>`).join('');
+    ui = `<div class="slots ${st.solved ? 'ok' : ''} ${st.picked.length ? '' : 'waiting'}" aria-label="くみたてた こたえ">${slots}</div>
       ${st.solved ? '' : `<div class="pool">${pool}</div>`}`;
   } else {
     ui = `<div class="options">${st.order.map((i) => {
@@ -406,60 +466,141 @@ function missionBuild(name) {
   }
   const cond = s.maxChars ? `<span class="chip">📏 ${s.maxChars}字${s.extract ? '' : '以内'}</span>` : '';
   const ready = b.type === 'cards' && !st.solved && st.picked.length > 0;
-  return `<h2>${esc(name)}</h2>
-    ${cond ? `<p class="helper">${cond}</p>` : ''}
-    <div class="question">${highlightQuestion(s.question)}</div>
+  // 1年：とい と こたえを つなげて よむ（耳で「あってる」を感じる）
+  const solvedBox = s.grade === 1
+    ? `<div class="pair" role="status"><div class="pair-q"><span class="pair-tag">とい</span>${highlightQuestion(s)}</div><div class="pair-a"><span class="pair-tag">こたえ</span>${esc(s.exampleAnswer)}</div>${canSpeak ? '<button type="button" class="read-btn" id="pair-read">🔈 つなげて よむ</button>' : ''}</div>`
+    : goodBox('🗣️', `できた！ 声に出して読んでみよう。<br><b>「${esc(s.exampleAnswer)}」</b>`);
+  return `${cond ? `<p class="helper">${cond}</p>` : ''}
+    <div class="question">${highlightQuestion(s)}</div>
     ${ui}
-    ${st.solved ? `<div class="feedback good" role="status"><span class="ico" aria-hidden="true">🗣️</span><span>${t('できた！ こえに だして よんでみよう。', 'できた！ 声に出して読んでみよう。')}<br><b>「${esc(s.exampleAnswer)}」</b></span></div>` : hintBox('build')}
-    <div class="cta-bar">${st.solved ? `<button type="button" class="primary" id="next">${t('かく ミッションへ →', '書くミッションへ →')}</button>`
+    ${st.solved ? solvedBox : hintBox()}
+    <div class="cta-bar">${st.solved ? `<button type="button" class="primary" id="next">つぎへ →</button>`
       : b.type === 'cards' ? `<div class="row"><button type="button" class="secondary" id="clear" ${st.picked.length ? '' : 'disabled'}>↺ やりなおす</button><button type="button" class="primary" id="check" ${ready ? '' : 'disabled'}>これで OK！</button></div>`
         : `<button type="button" class="primary" disabled>${t('こたえを えらんでね', '答えを選んでね')}</button>`}</div>`;
 }
-function missionPaper(name) {
+const pairText = (s) => `${s.question}\n${s.exampleAnswer}`;
+function missionCheck() {
+  const st = S.st; const s = st.stage;
+  if (s.grade === 1) {
+    // なかまが「本文の写し」で こたえた。あってる？ ちがう？
+    const j = s.judge[st.sub];
+    const f = COMPANIONS[1][(st.index - 1 + st.sub) % 6];
+    say(st.solved ? (j.ok ? 'そう！<br>あってるね ⭕' : 'そう！<br>こたえに なって ないね ❌') : `${esc(f.name.split(' ').pop())}が かいたよ。<br>あってるかな？ 🧐`);
+    const btn = (v, label) => {
+      const right = (v === 1) === j.ok;
+      const cls = st.solved && right ? 'correct' : st.tried.includes(v) ? 'nope' : '';
+      return `<button type="button" class="judge-btn ${v ? 'ok' : 'ng'} ${cls}" data-judge="${v}" ${st.solved || st.tried.includes(v) ? 'disabled' : ''}>${label}</button>`;
+    };
+    return `<div class="question">${highlightQuestion(s)}</div>
+      <div class="friend-answer"><span class="who"><span aria-hidden="true">${f.emoji}</span> ${esc(f.name)}の こたえ</span><p>${esc(j.text)}</p></div>
+      <div class="ask">この こたえ、あってる？</div>
+      <div class="judge-row">${btn(1, '⭕ あってる')}${btn(0, '❌ ちがう')}</div>
+      ${st.solved ? goodBox(j.ok ? '⭕' : '❌', esc(j.why)) : st.tried.length ? `<div class="feedback hint" role="status"><span class="ico" aria-hidden="true">💡</span><span>おしい！ ${esc(j.why)}</span></div>` : ''}
+      ${nextBar('⭕か ❌を タップ')}`;
+  }
+  // 3年：先生になって丸つけ（100点の答えを選ぶ。まちがいを選ぶと、その答えのよくない所が出る）
+  say(st.solved ? '丸つけ完了！<br>先生の目だね 💯' : '100点の答えは<br>どれかな？ 🧐');
+  const items = st.order.map((i) => {
+    const r = s.review[i];
+    const showFlaw = !r.ok && (st.solved || st.tried.includes(i));
+    const cls = st.solved && r.ok ? 'correct' : showFlaw ? 'nope' : '';
+    return `<button type="button" class="option review ${cls}" data-review="${i}" ${st.solved || st.tried.includes(i) ? 'disabled' : ''}><span class="rv"><span class="rv-text">${esc(r.text)}</span>${showFlaw ? `<span class="flaw">✗ ${esc(r.flaw)}</span>` : ''}${st.solved && r.ok ? '<span class="flaw ok">💯 条件を全部みたしている</span>' : ''}</span></button>`;
+  }).join('');
+  return `<div class="question">${highlightQuestion(s)}</div>
+    <div class="ask">100点の答えはどれ？</div>
+    <div class="options">${items}</div>
+    ${st.solved ? goodBox('✏️', '自分の答えも、書いたあとに条件を1つずつ見直そう。') : ''}
+    ${nextBar('答えを選んでね')}`;
+}
+function missionPaper() {
   const st = S.st; const s = st.stage;
   say(t('かみに かいたら<br>たからばこだよ！ ✏️', '紙に書いたら<br>宝箱だよ！ ✏️'));
-  return `<h2>${esc(name)}</h2>
-    <div class="question">${esc(s.question)}</div>
-    <div class="notebook"><small>✏️ ${t('かみに うつそう', '紙に写そう')}</small>${esc(s.exampleAnswer)}</div>
+  const notebook = `<div class="notebook"><small>✏️ ${t('かみに うつそう', '見本')}</small>${esc(s.exampleAnswer)}</div>`;
+  // 3年：見本は見ないで書き、条件で じぶんチェック
+  const g3 = s.grade === 3 ? `${st.showModel ? notebook : `<div class="writing-visual"><span class="pencil" aria-hidden="true">✏️</span><span>見本を見ないで、紙に書いてみよう。</span></div><button type="button" class="link-btn" id="model">👀 見本を見る</button>`}
+    <div class="group-label">✅ 書けたら じぶんチェック</div>
+    <div class="checklist">${s.conds.answers.map((i) => `<button type="button" class="check-item ${st.checked.includes(i) ? 'on' : ''}" data-selfcheck="${i}" aria-pressed="${st.checked.includes(i)}">${esc(s.conds.choices[i])}</button>`).join('')}</div>` : notebook;
+  return `<div class="question">${esc(s.question)}</div>
+    ${g3}
     <div class="parent-box"><strong>👪 かけたら おうちの人が タップ</strong><p>どれでも宝箱は開きます。</p></div>
     ${choiceButtons('paper', [['self', '😊 自分から書けた'], ['prompt', '💬 声かけで書けた'], ['oral', '🗣️ 今日は口で言えた（書くのはお休み）']], st.paper)}
     <div class="cta-bar"><button type="button" class="primary" id="next" ${st.paper ? '' : 'disabled'}>🎁 たからばこを あける</button></div>`;
 }
+function solve(el, word = 'せいかい！') {
+  S.st.solved = true; sfx('good'); hop(); render(); burst(word, $(el));
+}
 function bindMission() {
-  const st = S.st; const s = st.stage;
+  const st = S.st; const s = st.stage; const kind = kindOf(st);
   const next = $('#next');
-  if (st.mission === 1) {
+  if (kind === 'decode') {
+    on('[data-chip]', (b) => {
+      if (b.dataset.key) solve('.qchip.found', 'みつけた！');
+      else { st.tried.push(Number(b.dataset.chip)); miss(); }
+    });
     on('[data-pick]', (b) => {
       const i = Number(b.dataset.pick);
-      if (i === s.decode[st.sub].answer) { st.solved = true; sfx('good'); hop(); render(); burst('せいかい！', $('.option.correct')); }
-      else { st.tried.push(i); missed(); render(); }
+      if (i === s.shape.answer) solve('.option.correct');
+      else { st.tried.push(i); miss(); }
+    });
+    on('[data-cond]', (b) => {
+      sfx('tap');
+      const i = Number(b.dataset.cond);
+      st.selected = st.selected.includes(i) ? st.selected.filter((x) => x !== i) : [...st.selected, i];
+      render();
+    });
+    $('#check')?.addEventListener('click', () => {
+      if (sameSet(st.selected, s.conds.answers)) solve('.options', '解読！');
+      else { st.tried.push(st.selected.join(',')); miss(); }
     });
   }
-  if (st.mission === 2) {
+  if (kind === 'evidence') {
     on('[data-sent]', (b) => {
       const i = Number(b.dataset.sent);
       if (s.evidence.includes(i)) { st.solved = true; sfx('crack'); setTimeout(() => sfx('good'), 120); hop(); render(); burst('パリン！', $('#barrier')); }
-      else { if (!st.tried.includes(i)) st.tried.push(i); missed(); render(); }
+      else { if (!st.tried.includes(i)) st.tried.push(i); miss(); }
     });
   }
-  if (st.mission === 3) {
+  if (kind === 'build') {
     on('[data-card]', (b) => { sfx('tap'); st.picked.push(Number(b.dataset.card)); render(); });
     on('[data-unpick]', (b) => { sfx('tap'); st.picked.splice(Number(b.dataset.unpick), 1); render(); });
     $('#clear')?.addEventListener('click', () => { sfx('tap'); st.picked = []; render(); });
     $('#check')?.addEventListener('click', () => {
-      if (checkOrder(st.picked, s.build.answer)) { st.solved = true; sfx('good'); hop(); render(); burst('できた！', $('.slots')); }
-      else { st.tried.push(st.picked.join(',')); st.picked = []; missed(); render(); }
+      if (checkOrder(fullPick(st.picked, s.build), s.build.answer)) {
+        solve('.slots', 'できた！');
+        if (s.grade === 1 && soundOn) setTimeout(() => speak(pairText(s)), 500);
+      } else { st.tried.push(st.picked.join(',')); st.picked = []; miss(); }
     });
     on('[data-choice]', (b) => {
       const i = Number(b.dataset.choice);
-      if (i === s.build.answer) { st.solved = true; sfx('good'); hop(); render(); burst('できた！', $('.option.correct')); }
-      else { st.tried.push(i); missed(); render(); }
+      if (i === s.build.answer) solve('.option.correct', 'できた！');
+      else { st.tried.push(i); miss(); }
+    });
+    $('#pair-read')?.addEventListener('click', () => speak(pairText(s)));
+  }
+  if (kind === 'check') {
+    on('[data-judge]', (b) => {
+      const v = Number(b.dataset.judge);
+      if ((v === 1) === s.judge[st.sub].ok) solve('.judge-btn.correct', v ? 'まる！' : 'みぬいた！');
+      else { st.tried.push(v); miss(); }
+    });
+    on('[data-review]', (b) => {
+      const i = Number(b.dataset.review);
+      if (s.review[i].ok) solve('.option.correct', '💯');
+      else { st.tried.push(i); miss(); }
     });
   }
-  if (st.mission === 4) {
+  if (kind === 'paper') {
     on('[data-field]', (b) => { sfx('tap'); st.paper = b.dataset.value; render(); });
+    $('#model')?.addEventListener('click', () => { sfx('tap'); st.showModel = true; render(); });
+    on('[data-selfcheck]', (b) => {
+      const i = Number(b.dataset.selfcheck);
+      st.checked = st.checked.includes(i) ? st.checked.filter((x) => x !== i) : [...st.checked, i];
+      sfx(st.checked.includes(i) ? 'good' : 'tap'); render();
+    });
     next?.addEventListener('click', () => {
-      S.progress = completeStage(S.progress, s.id, { hints: st.hintsUsed, paper: st.paper });
+      const rec = { hints: st.hintsUsed, hintsBy: st.hintsBy, paper: st.paper };
+      if (s.grade === 3) Object.assign(rec, { selfCheck: st.checked.length, selfCheckOf: s.conds.answers.length, model: st.showModel });
+      S.progress = completeStage(S.progress, s.id, rec);
       save();
       S.reward = { kind: 'stage', index: st.index, opened: false };
       go('reward', { push: false });
@@ -549,6 +690,19 @@ function renderFriends() {
 
 // ---------- おうちの人へ ----------
 const PAPER_LABEL = { self: '自分から書けた', prompt: '声かけで書けた', oral: '口で言えた（書くのはお休み）', quick: '自分から書き始めた', avoid: '書き始められなかった' };
+const HELP_LABEL = { decode: '問いの読み取り', evidence: '根拠さがし', build: '答えの組み立て', check: '答えの見直し' };
+const HELP_TIP = {
+  decode: '紙の問題でも、まず「何を聞いている？」と問いのことばに丸をつける声かけを。',
+  evidence: '「どの文に書いてある？」と、答えの文に線を引く声かけを。',
+  build: '「〜から。」など、答えの終わり方を先に決めてから書くよう声かけを。',
+  check: '書いたあと「問いに合っている？」と一緒に読み直してみてください。',
+};
+// ヒントの内訳（ver3.0 から）：0回のミッションは省く
+function recordMeta(r) {
+  const by = Object.entries(r.hintsBy ?? {}).filter(([, v]) => v > 0).map(([k, v]) => `${HELP_LABEL[k]}${v}`).join('・');
+  const self = r.selfCheckOf ? ` ／ じぶんチェック ${r.selfCheck}/${r.selfCheckOf}` : '';
+  return `ヒント ${r.hints}回${by ? `（${by}）` : ''} ／ 紙：${PAPER_LABEL[r.paper] ?? '-'}${self} ／ ${r.plays}回目・${r.date}`;
+}
 function reportText() {
   const p = S.progress; const g = S.grade;
   const lines = [`【しばまるの こくごたんけん】小学${g}年生 / ${new Date().toLocaleDateString('ja-JP')}`, ''];
@@ -562,8 +716,10 @@ function reportText() {
   lines.push('■ ステージ');
   STAGES[g].forEach((s, i) => {
     const r = p.records[s.id];
-    lines.push(r ? `${i + 1}. ${s.title}（${s.skill.name}）：ヒント${r.hints}回／紙：${PAPER_LABEL[r.paper] ?? '-'}／${r.plays}回目 ${r.date}` : `${i + 1}. ${s.title}：まだ`);
+    lines.push(r ? `${i + 1}. ${s.title}（${s.skill.name}）：${recordMeta(r)}` : `${i + 1}. ${s.title}：まだ`);
   });
+  const focus = helpFocus(p.records);
+  if (focus) lines.push('', `手助けが多かったところ：${HELP_LABEL[focus]}（${HELP_TIP[focus]}）`);
   lines.push('', '※記録は観察のきっかけです。学力や発達の状態を判断するものではありません。');
   return lines.join('\n');
 }
@@ -578,14 +734,17 @@ function renderParent() {
   const log = STAGES[S.grade].map((s, i) => {
     const r = p.records[s.id];
     return `<li class="${r ? '' : 'todo'}"><span class="ic" aria-hidden="true">${r ? COMPANIONS[S.grade][i].emoji : '・'}</span><span><b>${i + 1}. ${esc(s.title)}</b>（${esc(s.skill.name)}）
-      <span class="meta">${r ? `ヒント ${r.hints}回 ／ 紙：${esc(PAPER_LABEL[r.paper] ?? '-')} ／ ${r.plays}回目・${r.date}` : 'まだ'}</span></span></li>`;
+      <span class="meta">${r ? esc(recordMeta(r)) : 'まだ'}</span></span></li>`;
   }).join('');
+  const focus = helpFocus(p.records);
+  const focusBox = focus ? `<div class="result-box focus-box"><div class="result-head">💡 手助けが多かったところ：${esc(HELP_LABEL[focus])}</div><p>${esc(HELP_TIP[focus])}</p></div>` : '';
   app.innerHTML = `<div class="progress-top"><button type="button" class="back" id="back">← マップ</button><span class="step-pill">小学${S.grade}年生</span></div>
     <h2>おうちの人へ</h2>
     <p class="helper">ヒントの回数は減点ではなく「どこで手助けが要ったか」の目安です。紙に書けた日・お休みの日の変化を1〜2週間ゆるく見てください。</p>
     <div class="group-label">🐾 チュートリアル（1問チェック）の結果</div>
     ${tut}
     <div class="group-label">🗺️ ステージの記録</div>
+    ${focusBox}
     <ul class="log">${log}</ul>
     <div class="row" style="display:flex;gap:10px">
       <button type="button" class="secondary" id="copy">📋 記録をコピー</button>
@@ -625,6 +784,7 @@ render();
 window.__shibamaru = { S, normalize };
 
 /* Version History
+ * ver3.0 (2026-10-19): ステージを5ミッションに。1年＝問いのことばタップ→こたえの かたち、文末カードの支え、とい＋こたえを つなげて よむ、なかまの こたえ○×。3年＝条件の複数選択、先生になって丸つけ、見本を隠して書く＋じぶんチェック。保護者ページにヒントの内訳と「手助けが多かったところ」
  * ver1.1 (2026-10-18): 文字を削減（チュートリアルの操作説明カード撤去、説明文の重複削除、保護者向け文言を短文化）。UIとしばまるの吹き出しで操作が分かる形に
  * ver1.0 (2026-10-18): 新規。タイトル（学年選択）→ぼうけんマップ→チュートリアル（元1問チェック＋操作説明）→6ステージ（解読・根拠・組み立て・紙）→宝箱→なかま図鑑・保護者ページ
  */

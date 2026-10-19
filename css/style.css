@@ -165,6 +165,7 @@ textarea:focus{border-color:var(--orange);outline:none}
 
 /* フィードバック・ヒント */
 .feedback{border-radius:16px;padding:12px 14px;margin:12px 0 0;font-size:14px;line-height:1.75;font-weight:800;display:flex;gap:10px;align-items:flex-start;animation:pop .35s cubic-bezier(.3,1.5,.5,1)}
+.feedback{scroll-margin-bottom:120px}
 .feedback .ico{font-size:22px;line-height:1.2}
 .feedback.good{background:#e9f9ee;color:#2f5b46;border:2px solid #b8e3cb}
 .feedback.hint{background:#fff7e3;color:#7b5a33;border:2px solid #f6dca5}
@@ -205,6 +206,49 @@ textarea:focus{border-color:var(--orange);outline:none}
 .writing-visual{display:flex;align-items:center;gap:12px;background:#fff7e5;border-radius:16px;padding:12px 15px;font-size:14px;font-weight:800;line-height:1.7;margin-bottom:12px}
 .writing-visual .pencil{font-size:28px;animation:wiggle 2.2s ease-in-out infinite}
 @keyframes wiggle{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg) translateY(-2px)}}
+
+/* ---------- ver3.0：問いのことば・つなげてよむ・なかまの こたえ・丸つけ・じぶんチェック ---------- */
+.sub-no{font-size:14px;color:var(--muted)}
+.qchips{display:flex;flex-wrap:wrap;gap:8px;padding:12px;border-left:5px solid var(--orange);background:#fff5ed;border-radius:0 14px 14px 0;margin:0 0 6px}
+.qchip{border:2px solid #f0d2b8;background:#fff;border-radius:12px;padding:8px 12px;min-height:46px;font-size:17px;font-weight:900;color:var(--ink);box-shadow:0 3px 0 #f3dcc8;transition:transform .12s}
+.qchip:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 #f3dcc8}
+.qchip.found{background:linear-gradient(transparent 50%,#ffd08a 50%),#fffbe8;border-color:#f1c75b;box-shadow:0 3px 0 #ecd28f;animation:found .55s ease}
+.qchip.nope{background:#f7f5f1;border-color:#ece7df;color:#a0a5a8;box-shadow:none}
+.qchip:disabled{opacity:1;cursor:default}
+.option.multi:before{border-radius:7px}
+.option.multi.selected:before{content:"✓";display:grid;place-items:center;color:#fff;font-size:13px;background:var(--orange);border-color:var(--orange);box-shadow:none}
+.option.off{background:#f7f5f1;border-color:#ece7df;color:#a0a5a8}
+.card.fixed{border-style:dashed;border-color:var(--orange);background:#fff3ea;color:var(--orange-deep);box-shadow:none;display:inline-flex;align-items:center}
+.slots.waiting:has(.card.fixed)::before{content:"↓ カードを タップ";color:#b7a688;font-size:13px;font-weight:800}
+.pair{margin:12px 0 0;border:2px solid #b8e3cb;background:#f2fbf5;border-radius:16px;padding:12px 14px;display:grid;gap:8px;animation:pop .35s cubic-bezier(.3,1.5,.5,1)}
+.pair-q,.pair-a{font-size:15px;font-weight:900;line-height:1.7}
+.pair-a{font-size:17px;color:#2f5b46}
+.pair-tag{display:inline-block;font-size:11px;border-radius:99px;padding:1px 8px;margin-right:6px;background:#fff5ed;color:var(--orange-deep);vertical-align:2px}
+.pair-a .pair-tag{background:#e2f4ea;color:#3c826d}
+.pair mark{background:linear-gradient(transparent 55%,#ffd08a 55%);color:inherit}
+.pair .read-btn{justify-self:start;margin:0}
+.friend-answer{position:relative;margin:0 0 12px;border-radius:16px;background:#fff;border:2px solid #e7dfd0;padding:12px 16px 14px;
+  background-image:repeating-linear-gradient(transparent 0 35px,#efe7d8 35px 36px);background-position:0 40px}
+.friend-answer .who{display:block;font-size:12px;font-weight:900;color:#a3917a;margin-bottom:2px}
+.friend-answer p{margin:0;font-size:18px;font-weight:900;line-height:36px}
+.judge-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.judge-btn{min-height:64px;border-radius:18px;border:2px solid #e9e5df;background:#fff;font-size:19px;font-weight:900;color:var(--ink);box-shadow:0 4px 0 #ebe4d8;transition:transform .12s}
+.judge-btn:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #ebe4d8}
+.judge-btn.correct{border-color:#78bd9a;background:#e9f9ee;color:#2f5b46;box-shadow:0 4px 0 #b8e3cb}
+.judge-btn.nope{background:#f7f5f1;border-color:#ece7df;color:#a0a5a8;box-shadow:none}
+.judge-btn:disabled{opacity:1;cursor:default}
+.option.review{align-items:flex-start}
+.rv{display:grid;gap:4px;min-width:0}
+.rv-text{font-size:15px;line-height:1.6}
+.flaw{font-size:12px;line-height:1.6;color:#a2674a;font-weight:800}
+.flaw.ok{color:#3c826d}
+.checklist{display:grid;gap:8px;margin-bottom:12px}
+.check-item{display:flex;align-items:center;gap:10px;text-align:left;min-height:50px;padding:10px 14px;border-radius:14px;border:2px solid #e7e6df;background:#fff;font-size:14px;font-weight:900;color:var(--ink);line-height:1.5}
+.check-item::before{content:"";flex:none;width:24px;height:24px;border-radius:7px;border:2px solid #d9d4c8;background:#fff}
+.check-item.on{border-color:#78bd9a;background:#e9f9ee;color:#2f5b46}
+.check-item.on::before{content:"✓";display:grid;place-items:center;color:#fff;font-size:14px;background:var(--mint-deep);border-color:var(--mint-deep)}
+.focus-box{background:#fff9ef;border-color:#f6dca5}
+.focus-box .result-head{color:#9a6a2a}.focus-box p{color:#7b5a33}
 
 /* ---------- ごほうび ---------- */
 .reward{text-align:center;padding-top:6px}
@@ -312,5 +356,6 @@ textarea:focus{border-color:var(--orange);outline:none}
   .main-card{box-shadow:none;border:none}.layout{display:block}.content{padding:8px}
 }
 /* Version History
+ * ver3.0 (2026-10-19): 問いのことばチップ・条件の複数選択・文末カード（固定）・とい＋こたえ表示・なかまの こたえ（⭕❌）・丸つけ・じぶんチェック・手助けボックスを追加
  * ver2.0 (2026-10-18): 元HTMLのCSSを分離。スマホのコンパクトなシーン・下部固定CTA・ぼうけんマップ・ミッションUI・宝箱・図鑑・保護者ページを追加
  */
