@@ -26,6 +26,9 @@ export function completeStage(progress, id, record) {
   };
 }
 
+// チュートリアルを とばす：ステージ1は開くが、観察の記録（records/tutorial）は作らない
+export const skipTutorial = (progress) => (progress.cleared.includes('tutorial') ? progress : { ...progress, cleared: ['tutorial', ...progress.cleared] });
+
 // 元アプリ（legacy/shiba_kokugo_check.html）の analysis() と同じ優先順
 export function analyzeTutorial(s) {
   if (s.intent !== 1) return { title: 'まずは「何を聞かれているか」を読む練習', text: '今回の問題では、答える内容の選択がずれました。問いにある「どうして／なぜ」を見つけて、理由を答える問題だと確認する練習がよさそう。' };
@@ -145,6 +148,7 @@ export function saveProgress(storage, grade, progress) {
 }
 
 /* Version History
+ * ver3.1 (2026-10-20): チュートリアルを とばす skipTutorial を追加
  * ver3.0 (2026-10-19): 問いのことばチップ（questionChips）・文末カードの支え（fullPick）・条件の複数選択（sameSet）・ミッション5つ（MISSIONS/subCount）・手助けの集計（helpFocus）。validateStage を1年（qword/shape/judge）と3年（conds/review）の新形式に対応
  * ver1.0 (2026-10-18): 新規。カード判定・解放・記録・チュートリアル分析（元 analysis() 移植）・問題データ検証・保存
  */

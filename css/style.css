@@ -127,6 +127,7 @@ h2{font-size:clamp(21px,2.3vw,27px);line-height:1.45;margin-bottom:6px;letter-sp
 .node.locked .t b{color:#9aa1a5}
 .here{position:absolute;top:-12px;left:6px;background:var(--orange);color:#fff;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px;z-index:2;letter-spacing:.05em}
 .map li:nth-child(even) .here{left:auto;right:6px}
+.skip-btn{display:block;margin:4px auto -6px;background:none;border:0;padding:8px 12px;min-height:44px;font-size:14px;font-weight:900;color:#8a7a6b;text-decoration:underline;text-underline-offset:4px}
 .map-links{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
 
 /* ---------- ミッション共通 ---------- */
@@ -356,6 +357,7 @@ textarea:focus{border-color:var(--orange);outline:none}
   .main-card{box-shadow:none;border:none}.layout{display:block}.content{padding:8px}
 }
 /* Version History
+ * ver3.1 (2026-10-20): チュートリアルを とばすボタン（.skip-btn）
  * ver3.0 (2026-10-19): 問いのことばチップ・条件の複数選択・文末カード（固定）・とい＋こたえ表示・なかまの こたえ（⭕❌）・丸つけ・じぶんチェック・手助けボックスを追加
  * ver2.0 (2026-10-18): 元HTMLのCSSを分離。スマホのコンパクトなシーン・下部固定CTA・ぼうけんマップ・ミッションUI・宝箱・図鑑・保護者ページを追加
  */

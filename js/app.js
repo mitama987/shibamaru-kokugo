@@ -1,6 +1,6 @@
 // しばまるの こくごたんけん — 画面描画とイベント
 import {
-  checkOrder, isUnlocked, completeStage, analyzeTutorial, loadProgress, saveProgress, normalize,
+  checkOrder, isUnlocked, completeStage, skipTutorial, analyzeTutorial, loadProgress, saveProgress, normalize,
   questionChips, fullPick, sameSet, MISSIONS, subCount, helpFocus,
 } from './logic.js';
 import { STAGES, TUTORIAL, COMPANIONS } from './stages.js';
@@ -204,9 +204,11 @@ function renderMap() {
       <button type="button" class="secondary" id="friends">🐾 なかま ずかん</button>
       <button type="button" class="secondary" id="parent">👪 おうちの人へ</button>
     </div>
-    <div class="cta-bar"><button type="button" class="primary" id="go" ${next === null ? 'disabled' : ''}>${ctaLabel}</button></div>`;
+    <div class="cta-bar"><button type="button" class="primary" id="go" ${next === null ? 'disabled' : ''}>${ctaLabel}</button>
+      ${next === 0 ? `<button type="button" class="skip-btn" id="skip">${t('チュートリアルを とばして ステージ1へ', 'チュートリアルをとばしてステージ1へ')}</button>` : ''}</div>`;
   on('[data-idx]', (b) => startStage(Number(b.dataset.idx)));
   $('#go').addEventListener('click', () => next !== null && startStage(next));
+  $('#skip')?.addEventListener('click', () => { S.progress = skipTutorial(S.progress); save(); startStage(1); });
   $('#friends').addEventListener('click', () => { sfx('tap'); go('friends'); });
   $('#parent').addEventListener('click', () => { sfx('tap'); S.resetArmed = false; go('parent'); });
 }
@@ -431,6 +433,8 @@ function missionDecode() {
     <div class="ask">条件を、全部選ぼう <span class="chip">${st.solved ? `${c.answers.length}つ` : 'いくつ？'}</span></div>
     <div class="options">${opts}</div>
     ${st.solved ? goodBox('⭕', esc(c.tip)) : hintBox()}
+    <div class="group-label">📖 本文</div>
+    ${storyBlock()}
     ${st.solved ? nextBar('') : `<div class="cta-bar"><button type="button" class="primary" id="check" ${st.selected.length ? '' : 'disabled'}>これで決定！</button></div>`}`;
 }
 function missionEvidence() {
@@ -784,6 +788,7 @@ render();
 window.__shibamaru = { S, normalize };
 
 /* Version History
+ * ver3.1 (2026-10-20): マップに「チュートリアルを とばす」（記録は作らず、ステージ1へ直行）。3年の条件えらびに本文を表示
  * ver3.0 (2026-10-19): ステージを5ミッションに。1年＝問いのことばタップ→こたえの かたち、文末カードの支え、とい＋こたえを つなげて よむ、なかまの こたえ○×。3年＝条件の複数選択、先生になって丸つけ、見本を隠して書く＋じぶんチェック。保護者ページにヒントの内訳と「手助けが多かったところ」
  * ver1.1 (2026-10-18): 文字を削減（チュートリアルの操作説明カード撤去、説明文の重複削除、保護者向け文言を短文化）。UIとしばまるの吹き出しで操作が分かる形に
  * ver1.0 (2026-10-18): 新規。タイトル（学年選択）→ぼうけんマップ→チュートリアル（元1問チェック＋操作説明）→6ステージ（解読・根拠・組み立て・紙）→宝箱→なかま図鑑・保護者ページ
